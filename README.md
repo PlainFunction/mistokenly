@@ -60,13 +60,13 @@ flowchart TD
 Exposes REST and gRPC endpoints for tokenization, detokenization, and audit queries. Handles authentication, rate limiting, and service discovery.
 
 ### PII Service
-Core service for encrypting, tokenizing, and retrieving PII. Implements key management and caching for high performance.
+Core service for encrypting, tokenizing, and retrieving PII. Enqueues write operations (token storage) to PGMQ for asynchronous processing. Calls the Persistence Service for read operations and cache lookups. Implements key management for high performance.
 
 ### Persistence Service
-Asynchronous worker that persists tokens and audit logs to PostgreSQL, using PGMQ for message queuing.
+Asynchronous worker that consumes write operations from the PGMQ queue and persists tokens and data to PostgreSQL. Also handles all cache operations (reads and writes) to Redis, ensuring the PII Service has fast access to cached tokens.
 
-### Audit Service: 
-Tracks access and changes to PII for compliance and monitoring.
+### Audit Service
+Tracks access and changes to PII for compliance and monitoring. Persists audit logs directly to PostgreSQL.
 
 ## Why use this?
 
