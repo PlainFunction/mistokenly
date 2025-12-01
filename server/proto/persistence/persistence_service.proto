@@ -1,0 +1,112 @@
+syntax = "proto3";
+
+package persistence;
+
+option go_package = "github.com/PlainFunction/mistokenly/proto/persistence";
+
+import "google/protobuf/timestamp.proto";
+
+// PersistenceService handles durable storage of PII tokens and TEKs
+service PersistenceService {
+  // StorePIIToken stores a tokenized PII record durably
+  rpc StorePIIToken(StorePIITokenRequest) returns (StorePIITokenResponse);
+  
+  // RetrievePIIToken retrieves a tokenized PII record from persistent storage
+  rpc RetrievePIIToken(RetrievePIITokenRequest) returns (RetrievePIITokenResponse);
+  
+  // StoreTEK stores a Tenant Encryption Key for an organization
+  rpc StoreTEK(StoreTEKRequest) returns (StoreTEKResponse);
+  
+  // RetrieveTEK retrieves a Tenant Encryption Key for an organization
+  rpc RetrieveTEK(RetrieveTEKRequest) returns (RetrieveTEKResponse);
+  
+  // HealthCheck returns the health status of the persistence service
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// StorePIITokenRequest represents a request to store a PII token
+// This message is published to PGMQ queue by the PII service
+message StorePIITokenRequest {
+  string reference_hash = 1;
+  bytes encrypted_data = 2;
+  bytes iv = 3;  // Initialization Vector for decryption
+  string data_type = 4;
+  string client_id = 5;
+  string organization_id = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp expires_at = 8;
+  map<string, string> metadata = 9;
+}
+
+message StorePIITokenResponse {
+  string reference_hash = 1;
+  string status = 2;  // "success" or "error"
+  string error_message = 3;
+}
+
+// RetrievePIITokenRequest represents a request to retrieve a PII token
+message RetrievePIITokenRequest {
+  string reference_hash = 1;
+  string organization_id = 2;  // For access control verification
+}
+
+message RetrievePIITokenResponse {
+  string reference_hash = 1;
+  bytes encrypted_data = 2;
+  bytes iv = 3;
+  string data_type = 4;
+  string client_id = 5;
+  string organization_id = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp expires_at = 8;
+  map<string, string> metadata = 9;
+  string status = 10;  // "success" or "error"
+  string error_message = 11;
+}
+
+message HealthCheckRequest {
+  string service_name = 1;
+}
+
+message HealthCheckResponse {
+  string status = 1;  // "healthy", "degraded", "unhealthy"
+  string service_name = 2;
+  string version = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  map<string, string> details = 5;
+}
+
+// TEK-related messages
+
+// StoreTEKRequest represents a request to store a TEK for an organization
+message StoreTEKRequest {
+  string organization_id = 1;
+  bytes encrypted_tek = 2;  // TEK encrypted with KEK
+  string org_key_hash = 3;  // SHA-256 hash of organization key
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp rotated_at = 5;  // Nullable
+  int32 version = 6;
+}
+
+message StoreTEKResponse {
+  string organization_id = 1;
+  string status = 2;  // "success" or "error"
+  string error_message = 3;
+}
+
+// RetrieveTEKRequest represents a request to retrieve a TEK for an organization
+message RetrieveTEKRequest {
+  string organization_id = 1;
+  string organization_key = 2;  // For verification
+}
+
+message RetrieveTEKResponse {
+  string organization_id = 1;
+  bytes encrypted_tek = 2;  // TEK encrypted with KEK
+  string org_key_hash = 3;  // SHA-256 hash of organization key
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp rotated_at = 5;  // Nullable
+  int32 version = 6;
+  string status = 7;  // "success" or "error"
+  string error_message = 8;
+}

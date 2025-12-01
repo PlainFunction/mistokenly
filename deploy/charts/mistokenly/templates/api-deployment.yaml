@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-api
+  labels:
+    app: {{ .Release.Name }}-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-api
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-api
+        {{- with .Values.api.podLabels }}
+        {{ toYaml . | indent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.api.podAnnotations }}
+        {{ toYaml . | indent 8 }}
+        {{- end }}
+    spec:
+      {{- if .Values.useRegCred }}
+      imagePullSecrets:
+        - name: regcred
+      {{- end }}
+      containers:
+      - name: {{ .Release.Name }}-api
+        image: {{ .Values.api.image.repository }}:{{ .Values.version }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: API_PORT
+          value: "8080"
+        - name: ENVIRONMENT
+          value: "production"
+        - name: USE_REMOTE_SERVICES
+          value: "true"
+        - name: PII_SERVICE_HOST
+          value: "{{ .Release.Name }}-pii"
+        - name: PII_SERVICE_PORT
+          value: "{{ .Values.pii.service.port }}"
+        - name: AUDIT_SERVICE_HOST
+          value: "{{ .Release.Name }}-audit"
+        - name: AUDIT_SERVICE_PORT
+          value: "{{ .Values.audit.service.port }}"
+        - name: PERSIST_SERVICE_HOST
+          value: "{{ .Release.Name }}-persistence"
+        - name: PERSIST_SERVICE_PORT
+          value: "{{ .Values.persistence.service.port }}"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3

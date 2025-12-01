@@ -1,0 +1,195 @@
+{{- if .Values.dbInit }}
+{{- if .Values.dbInit.deploy }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Namespace }}-db-init
+  labels:
+    app: {{ .Release.Name }}-db-init
+  annotations:
+    # Force recreation on upgrade
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-db-init
+        {{- with .Values.dbInit.podLabels }}
+        {{ toYaml . | indent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.dbInit.podAnnotations }}
+        {{ toYaml . | indent 8 }}
+        {{- end }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: {{ .Release.Name }}-db-init
+        image: postgres:latest
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          
+          # Wait for audit database to be ready
+          until pg_isready -h $AUDIT_DB_HOST -p $AUDIT_DB_PORT -U $AUDIT_DB_USER; do
+            echo "Waiting for audit database $AUDIT_DB_HOST:$AUDIT_DB_PORT..."
+            sleep 2
+          done
+          
+          # Wait for persistence database to be ready
+          until pg_isready -h $PERSISTENCE_DB_HOST -p $PERSISTENCE_DB_PORT -U $PERSISTENCE_DB_USER; do
+            echo "Waiting for persistence database $PERSISTENCE_DB_HOST:$PERSISTENCE_DB_PORT..."
+            sleep 2
+          done
+          
+          # Wait for MQ database to be ready
+          until pg_isready -h $MQ_DB_HOST -p $MQ_DB_PORT -U $MQ_DB_USER; do
+            echo "Waiting for MQ database $MQ_DB_HOST:$MQ_DB_PORT..."
+            sleep 2
+          done
+          
+          # Check if audit_logs database exists
+          AUDIT_DB_EXISTS=$(PGPASSWORD=$AUDIT_DB_PASSWORD psql -h $AUDIT_DB_HOST -p $AUDIT_DB_PORT -U $AUDIT_DB_USER -lqt | cut -d \| -f 1 | grep -qw $AUDIT_DB_NAME && echo "yes" || echo "no")
+          
+          if [ "$AUDIT_DB_EXISTS" = "no" ]; then
+            echo "Creating audit_logs database..."
+            PGPASSWORD=$AUDIT_DB_PASSWORD psql -h $AUDIT_DB_HOST -p $AUDIT_DB_PORT -U $AUDIT_DB_USER -c "CREATE DATABASE $AUDIT_DB_NAME;"
+          else
+            echo "Audit database $AUDIT_DB_NAME already exists"
+          fi
+          
+          # Check if audit_logs table exists
+          AUDIT_TABLE_EXISTS=$(PGPASSWORD=$AUDIT_DB_PASSWORD psql -h $AUDIT_DB_HOST -p $AUDIT_DB_PORT -U $AUDIT_DB_USER -d $AUDIT_DB_NAME -c "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'audit_logs');" | grep -q "t" && echo "yes" || echo "no")
+          
+          if [ "$AUDIT_TABLE_EXISTS" = "no" ]; then
+            echo "Creating audit_logs table..."
+            PGPASSWORD=$AUDIT_DB_PASSWORD psql -h $AUDIT_DB_HOST -p $AUDIT_DB_PORT -U $AUDIT_DB_USER -d $AUDIT_DB_NAME -c "
+            CREATE TABLE audit_logs (
+              audit_id VARCHAR(255) PRIMARY KEY,
+              reference_hash VARCHAR(255) NOT NULL,
+              operation VARCHAR(100) NOT NULL,
+              requesting_service VARCHAR(255),
+              requesting_user VARCHAR(255),
+              purpose VARCHAR(500),
+              timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+              client_ip VARCHAR(45),
+              metadata JSONB
+            );
+            
+            CREATE INDEX idx_audit_logs_reference_hash ON audit_logs(reference_hash);
+            CREATE INDEX idx_audit_logs_timestamp ON audit_logs(timestamp);
+            CREATE INDEX idx_audit_logs_requesting_service ON audit_logs(requesting_service);
+            "
+          else
+            echo "Audit table audit_logs already exists"
+          fi
+          
+          # Check if pii_vault database exists
+          PII_DB_EXISTS=$(PGPASSWORD=$PERSISTENCE_DB_PASSWORD psql -h $PERSISTENCE_DB_HOST -p $PERSISTENCE_DB_PORT -U $PERSISTENCE_DB_USER -lqt | cut -d \| -f 1 | grep -qw $PII_DB_NAME && echo "yes" || echo "no")
+          
+          if [ "$PII_DB_EXISTS" = "no" ]; then
+            echo "Creating pii_vault database..."
+            PGPASSWORD=$PERSISTENCE_DB_PASSWORD psql -h $PERSISTENCE_DB_HOST -p $PERSISTENCE_DB_PORT -U $PERSISTENCE_DB_USER -c "CREATE DATABASE $PII_DB_NAME;"
+          else
+            echo "PII database $PII_DB_NAME already exists"
+          fi
+          
+          # Check if pii_tokens table exists
+          PII_TOKENS_EXISTS=$(PGPASSWORD=$PERSISTENCE_DB_PASSWORD psql -h $PERSISTENCE_DB_HOST -p $PERSISTENCE_DB_PORT -U $PERSISTENCE_DB_USER -d $PII_DB_NAME -c "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'pii_tokens');" | grep -q "t" && echo "yes" || echo "no")
+          
+          if [ "$PII_TOKENS_EXISTS" = "no" ]; then
+            echo "Creating PII tables..."
+            PGPASSWORD=$PERSISTENCE_DB_PASSWORD psql -h $PERSISTENCE_DB_HOST -p $PERSISTENCE_DB_PORT -U $PERSISTENCE_DB_USER -d $PII_DB_NAME -c "
+            CREATE TABLE pii_tokens (
+              reference_hash VARCHAR(255) PRIMARY KEY,
+              encrypted_data BYTEA NOT NULL,
+              iv BYTEA NOT NULL,
+              data_type VARCHAR(100) NOT NULL,
+              client_id VARCHAR(255) NOT NULL,
+              organization_id VARCHAR(255) NOT NULL,
+              created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+              expires_at TIMESTAMP WITH TIME ZONE,
+              metadata JSONB
+            );
+            
+            CREATE TABLE organization_teks (
+              organization_id VARCHAR(255) PRIMARY KEY,
+              encrypted_tek BYTEA NOT NULL,
+              org_key_hash VARCHAR(255) NOT NULL,
+              created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+              rotated_at TIMESTAMP WITH TIME ZONE,
+              version INTEGER DEFAULT 1,
+              is_active BOOLEAN DEFAULT true
+            );
+            
+            CREATE INDEX idx_pii_tokens_org ON pii_tokens(organization_id);
+            CREATE INDEX idx_pii_tokens_expires ON pii_tokens(expires_at);
+            CREATE INDEX idx_organization_teks_active ON organization_teks(is_active);
+            "
+          else
+            echo "PII tables already exist"
+          fi
+          
+          # Check if pii_queue database exists
+          MQ_DB_EXISTS=$(PGPASSWORD=$MQ_DB_PASSWORD psql -h $MQ_DB_HOST -p $MQ_DB_PORT -U $MQ_DB_USER -lqt | cut -d \| -f 1 | grep -qw $MQ_DB_NAME && echo "yes" || echo "no")
+          
+          if [ "$MQ_DB_EXISTS" = "no" ]; then
+            echo "Creating pii_queue database..."
+            PGPASSWORD=$MQ_DB_PASSWORD psql -h $MQ_DB_HOST -p $MQ_DB_PORT -U $MQ_DB_USER -c "CREATE DATABASE $MQ_DB_NAME;"
+          else
+            echo "MQ database $MQ_DB_NAME already exists"
+          fi
+          
+          # Check if PGMQ extension exists
+          PGMQ_EXISTS=$(PGPASSWORD=$MQ_DB_PASSWORD psql -h $MQ_DB_HOST -p $MQ_DB_PORT -U $MQ_DB_USER -d $MQ_DB_NAME -c "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pgmq');" | grep -q "t" && echo "yes" || echo "no")
+          
+          if [ "$PGMQ_EXISTS" = "no" ]; then
+            echo "Setting up PGMQ extension and queue..."
+            PGPASSWORD=$MQ_DB_PASSWORD psql -h $MQ_DB_HOST -p $MQ_DB_PORT -U $MQ_DB_USER -d $MQ_DB_NAME -c "
+            CREATE EXTENSION IF NOT EXISTS pgmq;
+            SELECT pgmq.create('pii_token_persistence');
+            "
+          else
+            echo "PGMQ extension and queue already exist"
+          fi
+          
+          echo "Database initialization completed successfully"
+          echo "Initialization finished - container will exit"
+        env:
+        - name: AUDIT_DB_HOST
+          value: "{{ .Values.audit.database.host }}"
+        - name: AUDIT_DB_PORT
+          value: "{{ .Values.audit.database.port }}"
+        - name: AUDIT_DB_USER
+          value: "{{ .Values.audit.database.user }}"
+        - name: AUDIT_DB_PASSWORD
+          value: "{{ .Values.audit.database.password }}"
+        - name: AUDIT_DB_NAME
+          value: "{{ .Values.audit.database.name }}"
+        - name: PERSISTENCE_DB_HOST
+          value: "{{ .Values.persistence.database.host }}"
+        - name: PERSISTENCE_DB_PORT
+          value: "{{ .Values.persistence.database.port }}"
+        - name: PERSISTENCE_DB_USER
+          value: "{{ .Values.persistence.database.user }}"
+        - name: PERSISTENCE_DB_PASSWORD
+          value: "{{ .Values.persistence.database.password }}"
+        - name: PII_DB_NAME
+          value: "{{ .Values.persistence.database.name }}"
+        - name: MQ_DB_HOST
+          value: "{{ .Values.persistence.mqDatabase.host }}"
+        - name: MQ_DB_PORT
+          value: "{{ .Values.persistence.mqDatabase.port }}"
+        - name: MQ_DB_USER
+          value: "{{ .Values.persistence.mqDatabase.user }}"
+        - name: MQ_DB_PASSWORD
+          value: "{{ .Values.persistence.mqDatabase.password }}"
+        - name: MQ_DB_NAME
+          value: "{{ .Values.persistence.mqDatabase.name }}"
+{{- end }}
+{{- end }}

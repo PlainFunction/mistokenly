@@ -1,0 +1,20 @@
+{
+  "name": "@PlainFunction/examples",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@openai/agents": "^0.3.3",
+    "dotenv": "^17.2.3",
+    "openai": "^6.9.1",
+    "zod": "^4.1.12",
+    "body-parser": "^2.2.1"
+  }
+}

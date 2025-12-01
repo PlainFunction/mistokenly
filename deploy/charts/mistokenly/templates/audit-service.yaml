@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-audit
+  labels:
+    app: {{ .Release.Name }}-audit
+spec:
+  type: {{ .Values.audit.service.type }}
+  selector:
+    app: {{ .Release.Name }}-audit
+  ports:
+  - name: grpc
+    port: {{ .Values.audit.service.port }}
+    targetPort: 9081
+    protocol: TCP
+  sessionAffinity: None

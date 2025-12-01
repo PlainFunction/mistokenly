@@ -1,0 +1,75 @@
+{{- if .Values.valkey }}
+{{- if .Values.valkey.deploy }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: valkey
+  labels:
+    app: valkey
+spec:
+  serviceName: valkey
+  replicas: 1
+  selector:
+    matchLabels:
+      app: valkey
+  template:
+    metadata:
+      labels:
+        app: valkey
+        {{- with .Values.valkey.podLabels }}
+        {{ toYaml . | indent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.valkey.podAnnotations }}
+        {{ toYaml . | indent 8 }}
+        {{- end }}
+    spec:
+      containers:
+      - name: valkey
+        image: valkey/valkey:latest
+        ports:
+        - containerPort: 6379
+        command:
+        - valkey-server
+        - --appendonly
+        - "yes"
+        - --save
+        - "60 1000"
+        volumeMounts:
+        - name: valkey-data
+          mountPath: /data
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          exec:
+            command:
+            - valkey-cli
+            - ping
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - valkey-cli
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+  volumeClaimTemplates:
+  - metadata:
+      name: valkey-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 10Gi
+{{- end }}
+{{- end }}

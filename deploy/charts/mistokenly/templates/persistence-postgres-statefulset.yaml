@@ -1,0 +1,80 @@
+{{- if .Values.postgres }}
+{{- if .Values.postgres.deploy }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-persistent
+  labels:
+    app: postgres-persistent
+spec:
+  serviceName: postgres-persistent
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-persistent
+  template:
+    metadata:
+      labels:
+        app: postgres-persistent
+        {{- with .Values.postgres.podLabels }}
+        {{ toYaml . | indent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.postgres.podAnnotations }}
+        {{ toYaml . | indent 8 }}
+        {{- end }}
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:latest
+        ports:
+        - containerPort: 5432
+          name: postgres
+          protocol: TCP
+        env:
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "postgres"
+        - name: PGDATA
+          value: "/var/lib/postgresql/data"
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 50Gi
+{{- end }}
+{{- end }}

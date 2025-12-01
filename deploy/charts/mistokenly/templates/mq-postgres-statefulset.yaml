@@ -1,0 +1,96 @@
+{{- if .Values.postgres }}
+{{- if .Values.postgres.deploy }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-mq
+  labels:
+    app: postgres-mq
+spec:
+  serviceName: postgres-mq
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-mq
+  template:
+    metadata:
+      labels:
+        app: postgres-mq
+        {{- with .Values.postgres.podLabels }}
+        {{ toYaml . | indent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.postgres.podAnnotations }}
+        {{ toYaml . | indent 8 }}
+        {{- end }}
+    spec:
+      initContainers:
+      - name: init-postgres-data
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          mkdir -p /var/lib/postgresql &&
+          chown -R 999:999 /var/lib/postgresql
+        volumeMounts:
+        - name: postgres-mq-data
+          mountPath: /var/lib/postgresql
+      containers:
+      - name: pgmq
+        image: ghcr.io/pgmq/pg18-pgmq:v1.7.0
+        ports:
+        - containerPort: 5432
+          name: postgres
+          protocol: TCP
+        env:
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "postgres"
+        - name: PGDATA
+          value: "/var/lib/postgresql/data"
+        volumeMounts:
+        - name: postgres-mq-data
+          mountPath: /var/lib/postgresql
+        securityContext:
+          runAsUser: 999
+          runAsGroup: 999
+          fsGroup: 999
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-mq-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 10Gi
+{{- end }}
+{{- end }}

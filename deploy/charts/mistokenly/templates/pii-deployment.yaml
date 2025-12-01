@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-pii
+  labels:
+    app: {{ .Release.Name }}-pii
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-pii
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-pii
+        {{- with .Values.pii.podLabels }}
+        {{ toYaml . | indent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.pii.podAnnotations }}
+        {{ toYaml . | indent 8 }}
+        {{- end }}
+    spec:
+      {{- if .Values.useRegCred }}
+      imagePullSecrets:
+        - name: regcred
+      {{- end }}
+      containers:
+      - name: {{ .Release.Name }}-pii
+        image: {{ .Values.pii.image.repository }}:{{ .Values.version }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9080
+          name: grpc
+          protocol: TCP
+        env:
+        - name: PII_SERVICE_PORT
+          value: "{{ .Values.pii.service.port }}"
+        - name: ENVIRONMENT
+          value: "production"
+        - name: PGMQ_DATABASE_URL
+          value: "postgres://{{ .Values.pii.mqDatabase.user }}:{{ .Values.pii.mqDatabase.password }}@{{ .Values.pii.mqDatabase.host }}:{{ .Values.pii.mqDatabase.port }}/{{ .Values.pii.mqDatabase.name }}?sslmode={{ .Values.pii.mqDatabase.sslmode }}"
+        - name: PERSIST_SERVICE_PORT
+          value: "{{ .Values.persistence.service.port }}"
+        - name: PERSIST_SERVICE_HOST
+          value: "{{ .Release.Name }}-persistence"
+        - name: "KEK_BASE64"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-kek-secret
+              key: KEK_BASE64
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          grpc:
+            port: 9080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          grpc:
+            port: 9080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3

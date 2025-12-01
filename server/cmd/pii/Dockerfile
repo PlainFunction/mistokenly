@@ -1,0 +1,65 @@
+# Build stage
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /app
+
+# Install protobuf compiler and go plugins
+RUN apk add --no-cache protobuf-dev
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Generate protobuf code if needed
+RUN mkdir -p proto/pii
+RUN if [ -f proto/pii_service.proto ]; then \
+    protoc --go_out=. --go_opt=paths=source_relative \
+    --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+    proto/pii_service.proto; \
+    fi
+
+# Build with optimizations: strip debug info and symbols
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o pii-service ./cmd/pii
+
+# Final stage: Use alpine for user management and health checks
+FROM alpine:3.22.2
+
+# Install curl and grpc-health-probe for health checks
+RUN apk --no-cache add curl && \
+    wget -qO /usr/local/bin/grpc-health-probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.4.12/grpc_health_probe-linux-amd64 && \
+    chmod +x /usr/local/bin/grpc-health-probe
+
+# Create non-root user
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+# Copy CA certificates (needed for gRPC/HTTPS connections)
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# Copy the binary
+COPY --from=builder /app/pii-service /pii-service
+
+# Change ownership to non-root user
+RUN chown appuser:appgroup /pii-service
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 9080
+
+# Set environment
+ENV PII_SERVICE_PORT=9080
+ENV ENVIRONMENT=production
+
+# Health check (gRPC)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD grpc-health-probe -addr=localhost:9080 || exit 1
+
+# Run the binary
+CMD ["/pii-service"]

@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package pii;
+
+option go_package = "github.com/PlainFunction/mistokenly/proto/pii";
+
+import "google/protobuf/timestamp.proto";
+
+// PIIService handles PII tokenization and detokenization operations
+service PIIService {
+  // Tokenize encrypts and stores PII data, returning a reference token
+  rpc Tokenize(TokenizeRequest) returns (TokenizeResponse);
+  
+  // Detokenize retrieves and decrypts PII data from a reference token
+  rpc Detokenize(DetokenizeRequest) returns (DetokenizeResponse);
+  
+  // HealthCheck returns the health status of the PII service
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// TokenizeRequest contains PII data to be tokenized
+message TokenizeRequest {
+  string data = 1;
+  string data_type = 2;
+  string retention_policy = 3;
+  string client_id = 4;
+  map<string, string> metadata = 5;
+  string organization_id = 6;
+  string organization_key = 7;
+}
+
+// TokenizeResponse contains the generated reference token
+message TokenizeResponse {
+  string reference_hash = 1;
+  string token_type = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  string status = 4;
+  string error_message = 5;
+}
+
+// DetokenizeRequest contains the reference token to be detokenized
+message DetokenizeRequest {
+  string reference_hash = 1;
+  string purpose = 2;
+  string requesting_service = 3;
+  string requesting_user = 4;
+  string organization_id = 5;
+  string organization_key = 6;
+}
+
+// DetokenizeResponse contains the decrypted PII data
+message DetokenizeResponse {
+  string data = 1;
+  string data_type = 2;
+  google.protobuf.Timestamp original_timestamp = 3;
+  bool access_logged = 4;
+  string status = 5;
+  string error_message = 6;
+}
+
+// HealthCheckRequest requests health status
+message HealthCheckRequest {
+  string service_name = 1;
+}
+
+// HealthCheckResponse contains health status information
+message HealthCheckResponse {
+  string status = 1;
+  string service_name = 2;
+  string version = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  map<string, string> details = 5;
+}

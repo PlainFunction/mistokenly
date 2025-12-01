@@ -1,0 +1,113 @@
+version: 0.5.0
+useRegCred: false ## Set to true to use imagePullSecrets for private registries
+
+api:
+  image:
+    repository: docker.io/plainlyfunctioning/mistokenly-api
+
+  service:
+    type: LoadBalancer
+    port: 80
+  
+  podLabels: {} ## Additional labels to add to the API deployment
+  podAnnotations: {} ## Additional annotations to add to the API deployment
+  
+pii:
+  image:
+    repository: docker.io/plainlyfunctioning/mistokenly-pii
+  
+  ## Settings for the Key Encryption Key (KEK) used to encrypt/decrypt keys that encrypt/decrypt PII data
+  kek:
+    existingSecret: false ## Enable this to use an existing secret for the KEK - must be named <namespace>-kek-secret. Recommended for production.
+    kekBase64: FOllqyyny4UPJkktxu6BHnR8K0DmRgasKgEOpZ2Z1Hk= ## This is a base value only - replace with your generated base64-encoded 32-byte key. This is not needed if existing secret is used.
+  
+  service:
+    type: ClusterIP
+    port: 9080
+  
+  podLabels: {} ## Additional labels to add to the PII deployment
+  podAnnotations: {} ## Additional annotations to add to the PII deployment
+
+  ## Cache settings for the PII service - will work with any redis supported cache, and can be disabled. Recommended to have enabled for higher performance.
+  cache:
+    enabled: true
+    host: valkey
+    port: 6379
+  
+  ## Database connection settings for the Message Queue database (for PII processing tasks)
+  mqDatabase:
+    host: postgres-mq
+    port: 5432
+    name: pii_queue
+    user: postgres
+    password: postgres
+    sslmode: disable
+
+persistence:
+  image:
+    repository: docker.io/plainlyfunctioning/mistokenly-persistence
+
+  service:
+    type: ClusterIP
+    port: 9082
+  
+  podLabels: {} ## Additional labels to add to the Persistence deployment
+  podAnnotations: {} ## Additional annotations to add to the Persistence deployment
+
+  ## Database connection settings for PII storage
+  database:
+    host: postgres-persistent
+    port: 5432
+    name: pii_vault
+    user: postgres
+    password: postgres
+    sslmode: disable
+  
+  ## Database connection settings for the Message Queue database (for PII processing tasks)
+  mqDatabase:
+    host: postgres-mq
+    port: 5432
+    name: pii_queue
+    user: postgres
+    password: postgres
+    sslmode: disable
+
+audit:
+  image:
+    repository: docker.io/plainlyfunctioning/mistokenly-audit
+
+  service:
+    type: ClusterIP
+    port: 9081
+  
+  podLabels: {} ## Additional labels to add to the Audit deployment
+  podAnnotations: {} ## Additional annotations to add to the Audit deployment
+
+  ## Database connection settings for Audit logs storage
+  database:
+    host: postgres-persistent
+    port: 5432
+    name: audit_logs
+    user: postgres
+    password: postgres
+    sslmode: disable
+
+## Database initialization job - creates necessary databases and tables. This can be disabled to reduce resource usage after initial deployment, but should be run after any upgrades that modify the database schema.
+dbInit:
+  deploy: true
+
+  podLabels: {} ## Additional labels to add to the DB Init job
+  podAnnotations: {} ## Additional annotations to add to the DB Init job
+
+## Additional extra deployments required for Mistokenly to provide a database and cache locally -- recommended to be hosted by a managed service in production.
+valkey:
+  deploy: true
+
+  podLabels: {} ## Additional labels to add to the Valkey statefulset deployment
+  podAnnotations: {} ## Additional annotations to add to the Valkey statefulset deployment
+
+postgres:
+  deploy: true
+
+  podLabels: {} ## Additional labels to add to the Postgres statefulset deployment
+  podAnnotations: {} ## Additional annotations to add to the Postgres statefulset deployment

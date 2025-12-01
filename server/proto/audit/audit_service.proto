@@ -1,0 +1,76 @@
+// Audit service protobuf definitions
+// Provides gRPC endpoints for audit logging and compliance reporting
+
+syntax = "proto3";
+
+package audit;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/PlainFunction/mistokenly/proto/audit";
+
+// LogAccess logs an access event for audit trail
+message LogAccessRequest {
+  string reference_hash = 1;
+  string operation = 2; // "tokenize" or "detokenize"
+  string requesting_service = 3;
+  string requesting_user = 4;
+  string purpose = 5;
+  google.protobuf.Timestamp timestamp = 6;
+  string client_ip = 7;
+  map<string, string> metadata = 8;
+}
+
+message LogAccessResponse {
+  string audit_id = 1;
+  string status = 2; // "success" or "error"
+  string error_message = 3;
+}
+
+// GetAuditLogs retrieves audit logs based on criteria
+message GetAuditLogsRequest {
+  google.protobuf.Timestamp start_time = 1;
+  google.protobuf.Timestamp end_time = 2;
+  string reference_hash = 3;
+  string requesting_service = 4;
+  int32 limit = 5;
+  int32 offset = 6;
+}
+
+message AuditLogEntry {
+  string audit_id = 1;
+  string reference_hash = 2;
+  string operation = 3;
+  string requesting_service = 4;
+  string requesting_user = 5;
+  string purpose = 6;
+  google.protobuf.Timestamp timestamp = 7;
+  string client_ip = 8;
+  map<string, string> metadata = 9;
+}
+
+message GetAuditLogsResponse {
+  repeated AuditLogEntry logs = 1;
+  int32 total_count = 2;
+  string status = 3; // "success" or "error"
+  string error_message = 4;
+}
+
+// Health check
+message HealthCheckRequest {
+  string service_name = 1;
+}
+
+message HealthCheckResponse {
+  string status = 1; // "healthy", "degraded", "unhealthy"
+  string service_name = 2;
+  string version = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  map<string, string> details = 5;
+}
+
+service AuditService {
+  rpc LogAccess(LogAccessRequest) returns (LogAccessResponse);
+  rpc GetAuditLogs(GetAuditLogsRequest) returns (GetAuditLogsResponse);
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}

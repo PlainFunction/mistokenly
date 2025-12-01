@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-audit
+  labels:
+    app: {{ .Release.Name }}-audit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-audit
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-audit
+        {{- with .Values.audit.podLabels }}
+        {{ toYaml . | indent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.audit.podAnnotations }}
+        {{ toYaml . | indent 8 }}
+        {{- end }}
+    spec:
+      {{- if .Values.useRegCred }}
+      imagePullSecrets:
+        - name: regcred
+      {{- end }}
+      containers:
+      - name: {{ .Release.Name }}-audit
+        image: {{ .Values.audit.image.repository }}:{{ .Values.version }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9081
+          name: grpc
+          protocol: TCP
+        env:
+        - name: AUDIT_SERVICE_PORT
+          value: "{{ .Values.audit.service.port }}"
+        - name: ENVIRONMENT
+          value: "production"
+        - name: AUDIT_DATABASE_URL
+          value: "postgres://{{ .Values.audit.database.user }}:{{ .Values.audit.database.password }}@{{ .Values.audit.database.host }}:{{ .Values.audit.database.port }}/{{ .Values.audit.database.name }}?sslmode={{ .Values.audit.database.sslmode }}"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          grpc:
+            port: 9081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          grpc:
+            port: 9081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3

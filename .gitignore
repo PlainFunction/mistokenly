@@ -1,0 +1,8 @@
+.vscode/
+**/node_modules
+**/dist
+**/build
+**/kubeconfig
+.env
+**/*.exe
+**/local.yaml

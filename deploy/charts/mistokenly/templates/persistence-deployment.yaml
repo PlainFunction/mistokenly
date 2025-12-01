@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-persistence
+  labels:
+    app: {{ .Release.Name }}-persistence
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-persistence
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-persistence
+        {{- with .Values.persistence.podLabels }}
+        {{ toYaml . | indent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.persistence.podAnnotations }}
+        {{ toYaml . | indent 8 }}
+        {{- end }}
+    spec:
+      {{- if .Values.useRegCred }}
+      imagePullSecrets:
+        - name: regcred
+      {{- end }}
+      containers:
+      - name: {{ .Release.Name }}-persistence
+        image: {{ .Values.persistence.image.repository }}:{{ .Values.version }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9082
+          name: http
+          protocol: TCP
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: USE_REMOTE_SERVICES
+          value: "true"
+        - name: PERSIST_SERVICE_PORT
+          value: "{{ .Values.persistence.service.port }}"
+        - name: CACHE_HOST
+          value: "{{ .Values.pii.cache.host }}"
+        - name: CACHE_PORT
+          value: "{{ .Values.pii.cache.port }}"
+        - name: CACHE_ENABLED
+          value: "{{ .Values.pii.cache.enabled }}"
+        - name: PGMQ_DATABASE_URL
+          value: "postgres://{{ .Values.persistence.mqDatabase.user }}:{{ .Values.persistence.mqDatabase.password }}@{{ .Values.persistence.mqDatabase.host }}:{{ .Values.persistence.mqDatabase.port }}/{{ .Values.persistence.mqDatabase.name }}?sslmode={{ .Values.persistence.mqDatabase.sslmode }}"
+        - name: DATABASE_URL
+          value: "postgres://{{ .Values.persistence.database.user }}:{{ .Values.persistence.database.password }}@{{ .Values.persistence.database.host }}:{{ .Values.persistence.database.port }}/{{ .Values.persistence.database.name }}?sslmode={{ .Values.persistence.database.sslmode }}"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          grpc:
+            port: 9082
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          grpc:
+            port: 9082
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
