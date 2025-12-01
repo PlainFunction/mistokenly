@@ -47,8 +47,9 @@ flowchart TD
 
     APIGW -->|Tokenize/Detokenize| PII
     APIGW -->|Audit Query| Audit
-    PII -->|Enqueue Token| MQ
-    PII -->|Read/Write Operations| Persist
+    PII -->|Enqueue Write Operations| MQ
+    PII -->|Read Operations| Persist
+    Persist -->|Consume Queue| MQ
     Persist --> DB
     Persist <-->|Cache Operations| Redis
     PII -->|Audit Log| Audit
