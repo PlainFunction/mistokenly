@@ -6,6 +6,8 @@ Mistokenly is a secure, scalable platform for tokenizing, storing, and managing 
 
 The architecture is built with Kubernetes in mind as a microservices application to allow scaling and isolation at the network and cryptographic levels. Components are stateless, and replicas can be scaled up or out to handle load. The same images and configurations can be used to host the services in similar containerised environments. If using Kubernetes, it is recommended to implement service meshes in the cluster in order to round-robin connections and add additional protection to traffic between services.
 
+To directly query more information about this repository, use the indexed [DeepWiki](https://deepwiki.com/) for it: https://deepwiki.com/PlainFunction/mistokenly
+
 ## Getting Started
 
 To quickly deploy Mistokenly on Kubernetes using Helm:
