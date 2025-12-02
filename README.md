@@ -11,11 +11,9 @@ The architecture is built with Kubernetes in mind as a microservices application
 To quickly deploy Mistokenly on Kubernetes using Helm:
 
 ```bash
-helm repo add mistokenly https://example.com/helm-charts
+helm repo add mistokenly https://plainfunction.github.io/mistokenly/deploy/charts
 helm install mistokenly mistokenly/mistokenly --namespace mistokenly --create-namespace
 ```
-
-Replace `https://example.com/helm-charts` with the actual Helm chart repository URL.
 
 ## Overview
 

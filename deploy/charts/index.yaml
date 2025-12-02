@@ -3,9 +3,9 @@ entries:
   mistokenly:
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2025-12-02T06:19:52.5561786+10:00"
+    created: "2025-12-03T05:11:16.5960136+10:00"
     description: A Helm chart for Mistokenly
-    digest: 46bc4d982e329221ca0ff743f07fa34f8b494d431d67c4394463af8431d9de3e
+    digest: 5542c5f25d2d3debddd47daafea9cc8d181774f19618219f13eaa777a6dcc4f3
     keywords:
     - pii
     - database
@@ -18,4 +18,4 @@ entries:
     urls:
     - https://plainfunction.github.io/mistokenly/deploy/charts/mistokenly-0.1.0.tgz
     version: 0.1.0
-generated: "2025-12-02T06:19:52.5551696+10:00"
+generated: "2025-12-03T05:11:16.5948255+10:00"

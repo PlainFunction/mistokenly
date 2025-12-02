@@ -6,6 +6,9 @@ metadata:
   name: valkey
   labels:
     app: valkey
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-6"
 spec:
   serviceName: valkey
   replicas: 1

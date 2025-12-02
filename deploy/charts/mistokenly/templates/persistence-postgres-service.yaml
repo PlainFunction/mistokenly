@@ -4,6 +4,9 @@ apiVersion: v1
 kind: Service
 metadata:
   name: postgres-persistent
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-6"
 spec:
   type: ClusterIP
   ports:
