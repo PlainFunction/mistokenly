@@ -2,10 +2,27 @@ apiVersion: v1
 entries:
   mistokenly:
   - apiVersion: v2
-    appVersion: 1.0.0
-    created: "2025-12-03T05:11:16.5960136+10:00"
+    appVersion: 0.2.0
+    created: "2025-12-03T06:12:57.4955956+10:00"
     description: A Helm chart for Mistokenly
-    digest: 5542c5f25d2d3debddd47daafea9cc8d181774f19618219f13eaa777a6dcc4f3
+    digest: 080d2909042d46c59714bb2bbdaba11b32940b4ea392d7a688571a2d62cee724
+    keywords:
+    - pii
+    - database
+    - cache
+    maintainers:
+    - email: hello@plainfunction.com.au
+      name: Ceejay Kelly
+    name: mistokenly
+    type: application
+    urls:
+    - https://plainfunction.github.io/mistokenly/deploy/charts/mistokenly-0.2.0.tgz
+    version: 0.2.0
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2025-12-03T06:12:57.4950083+10:00"
+    description: A Helm chart for Mistokenly
+    digest: a617e04f81e2bedcad6e968ce03ef0a3d2afff8971ae1479c44a2827da55fed3
     keywords:
     - pii
     - database
@@ -18,4 +35,4 @@ entries:
     urls:
     - https://plainfunction.github.io/mistokenly/deploy/charts/mistokenly-0.1.0.tgz
     version: 0.1.0
-generated: "2025-12-03T05:11:16.5948255+10:00"
+generated: "2025-12-03T06:12:57.4938284+10:00"

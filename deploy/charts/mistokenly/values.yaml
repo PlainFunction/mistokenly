@@ -1,4 +1,4 @@
-version: 0.1.0
+version: 0.2.0
 useRegCred: false ## Set to true to use imagePullSecrets for private registries
 
 api:

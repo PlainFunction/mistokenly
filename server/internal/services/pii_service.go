@@ -360,7 +360,11 @@ func (s *PIIService) getOrCreateTEK(ctx context.Context, organizationID string, 
 	}
 
 	retrieveResp, err := s.persistenceClient.RetrieveTEK(ctx, retrieveReq)
-	if err != nil {
+
+	// Check if TEK doesn't exist (either gRPC error or status indicates not found)
+	shouldCreateTEK := err != nil || (retrieveResp != nil && retrieveResp.Status != "success")
+
+	if shouldCreateTEK {
 		// If TEK doesn't exist, create a new one
 		log.Printf("🔄 [PIIService] TEK not found for organization %s, creating new one", organizationID)
 
@@ -412,10 +416,6 @@ func (s *PIIService) getOrCreateTEK(ctx context.Context, organizationID string, 
 		log.Printf("✅ [PIIService] New TEK created and cached for organization: %s", organizationID)
 
 		return tekRecord, nil
-	}
-
-	if retrieveResp.Status != "success" {
-		return nil, fmt.Errorf("persistence service error retrieving TEK: %s", retrieveResp.ErrorMessage)
 	}
 
 	// Convert response to OrganizationTEK

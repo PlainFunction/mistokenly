@@ -7,7 +7,7 @@ metadata:
   labels:
     app: postgres-mq
   annotations:
-    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook": pre-install
     "helm.sh/hook-weight": "-6"
 spec:
   serviceName: postgres-mq
